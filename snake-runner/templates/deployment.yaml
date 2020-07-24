@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fullname" . }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+spec:
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      labels:
+        {{- include "selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          envFrom:
+          - secretRef:
+              name: {{ template "fullname" . }}-secrets
+          {{- if eq .Values.snake.docker_mode "host" }}
+          volumeMounts:
+            - name: host-docker-sock
+              mountPath: "/var/run/docker.sock"
+          {{- end }}
+          {{- if eq .Values.snake.docker_mode "dind" }}
+          volumeMounts:
+            - name: dind-tls
+              mountPath: /docker-tls
+          {{- end }}
+          env:
+          - name: SNAKE_DOCKER_VOLUMES
+            value: {{ .Values.snake.docker_volumes | toJson | quote }}
+          - name: SNAKE_LOG_DEBUG
+            value: {{ .Values.snake.log.debug | quote }}
+          - name: SNAKE_LOG_TRACE
+            value: {{ .Values.snake.log.trace | quote }}
+          {{- if eq .Values.snake.docker_mode "dind" }}
+          - name: DOCKER_HOST
+            value: tcp://localhost:2376
+          - name: DOCKER_CERT_PATH
+            value: /docker-tls/ca
+          {{- end }}
+        {{- if eq .Values.snake.docker_mode "dind" }}
+        - name: docker
+          image: docker:stable-dind
+          securityContext:
+            privileged: true
+          env:
+          - name: DOCKER_TLS_CERTDIR
+            value: /docker-tls
+          volumeMounts:
+            - name: dind-storage
+              mountPath: /var/lib/docker
+            - name: dind-tls
+              mountPath: /docker-tls
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - {{ include "name" . }}
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: kubernetes.io/hostname
+      {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      {{- if eq .Values.snake.docker_mode "host" }}
+      - name: host-docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+      {{- end }}
+      {{- if eq .Values.snake.docker_mode "dind" }}
+        - name: dind-storage
+          emptyDir: {}
+        - name: dind-tls
+          emptyDir: {}
+      {{- end }}
