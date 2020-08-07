@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: reconquest/snake-runner
   pullPolicy: Always
-  tag: "latest"
+  tag: "0.8"
 
 imagePullSecrets: []
 nameOverride: ""
