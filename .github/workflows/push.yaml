@@ -1,4 +1,4 @@
-name: Build & Push ecs-exporter chart
+name: Build & Push snake-runner chart
 on: push
 jobs:
   deploy:
@@ -9,7 +9,6 @@ jobs:
       env:
         SOURCE_DIR: '.'
         CHART_FOLDER: 'snake-runner'
-        FORCE: 'True'
         CHARTMUSEUM_URL: 'https://helm.reconquest.io'
         CHARTMUSEUM_USER: '${{ secrets.CHARTMUSEUM_USER }}'
         CHARTMUSEUM_PASSWORD: ${{ secrets.CHARTMUSEUM_PASSWORD }}
